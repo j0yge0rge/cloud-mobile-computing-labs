@@ -1,75 +1,129 @@
-# Lab 03 – Containerization and Cluster Orchestration
+# Lab 3 — Containerization and Cluster Orchestration
 
-**Student Name:** joy george  
-**Course:** Cloud & Mobile Computing (CMC)
-
----
-
-## What This Lab Covers
-
-| Part | Topic | Tool |
-|------|-------|------|
-| A | Namespaces & cgroups (container isolation) | Docker |
-| B | Image layering & multi-stage builds | Docker |
-| C | Kubernetes cluster, deployments, services | kind + kubectl |
-| D | Scheduling and node placement | kubectl |
-| E | Self-healing and health probes | kubectl |
+**Course:** Cloud and Mobile Computing — Week 3
+**Instructor:** Dr. Youssef Senousy
+**Student Name:** joy george
 
 ---
 
-## Files in This Folder
+## Overview
 
-| File | Purpose |
-|------|---------|
-| `app.py` | Simple Flask web app with `/` and `/health` routes |
-| `requirements.txt` | Python dependencies (Flask 3.0.0) |
-| `Dockerfile.basic` | Single-stage Docker image |
-| `Dockerfile.multistage` | Optimised two-stage Docker image |
-| `deployment.yaml` | Kubernetes Deployment (3 replicas, with nodeSelector) |
-| `service.yaml` | Kubernetes ClusterIP Service |
-| `probe-deployment.yaml` | Deployment with readiness + liveness probes |
-| `commands_and_results.txt` | Full step-by-step commands guide |
+This lab moves from container theory into hands-on systems work. It covers Linux isolation mechanisms (namespaces and cgroups), Docker image layering and multi-stage builds, local Kubernetes cluster orchestration using `kind`, scheduling with node selectors, and self-healing behavior through pod deletion and health probes.
 
 ---
 
-## Quick Start Order
+## Prerequisites
 
-```
-# 1. Build images
+- Docker Desktop or Docker Engine
+- [`kind`](https://kind.sigs.k8s.io/) (Kubernetes in Docker)
+- `kubectl`
+- A terminal and text editor
+- Minimum 8 GB RAM recommended
+
+---
+
+## How to Run
+
+### 1. Build Docker images
+
+```bash
+# Basic image
 docker build -f Dockerfile.basic -t lab3-basic .
+
+# Multi-stage image
 docker build -f Dockerfile.multistage -t lab3-multi .
 
-# 2. Create cluster
+# Compare sizes
+docker image ls
+```
+
+### 2. Create the local Kubernetes cluster
+
+```bash
 kind create cluster --name lab3-cluster
 
-# 3. Load images
+# Load images into the cluster
 kind load docker-image lab3-basic --name lab3-cluster
 kind load docker-image lab3-multi --name lab3-cluster
 
-# 4. Label node
-kubectl label nodes --all node-role=general
+# Verify
+kubectl cluster-info
+kubectl get nodes -o wide
+```
 
-# 5. Deploy
+### 3. Deploy the application
+
+```bash
 kubectl apply -f deployment.yaml
 kubectl apply -f service.yaml
 
-# 6. Access
-kubectl port-forward service/lab3-web-svc 8080:80
-# Then open http://localhost:8080/
+# Check status
+kubectl get pods -o wide
+kubectl describe deployment lab3-web
+```
 
-# 7. Cleanup
+### 4. Access the service
+
+```bash
+kubectl port-forward service/lab3-web-svc 8080:80
+
+# In a separate terminal
+curl http://localhost:8080/
+curl http://localhost:8080/health
+```
+
+### 5. Apply node selector (scheduling)
+
+```bash
+kubectl label nodes --all node-role=general
+kubectl get nodes --show-labels
+# Then re-apply deployment.yaml after adding the nodeSelector field
+```
+
+### 6. Test self-healing
+
+```bash
+# Delete a pod and watch it get recreated
+kubectl get pods
+kubectl delete pod <POD_NAME>
+kubectl get pods -w
+```
+
+### 7. Deploy with health probes
+
+```bash
+kubectl apply -f probe-deployment.yaml
+kubectl describe pod <POD_NAME>
+```
+
+### 8. Cleanup
+
+```bash
+kubectl delete -f deployment.yaml
+kubectl delete -f service.yaml
+kubectl delete -f probe-deployment.yaml
 kind delete cluster --name lab3-cluster
 ```
 
 ---
 
-## Key Concepts
+## Deliverables Summary
 
-**Namespaces** → isolate what a process can SEE (PIDs, network, filesystem)  
-**cgroups** → limit how much CPU/memory a process can USE  
-**Image layers** → each Dockerfile instruction = one cached layer  
-**Multi-stage build** → keeps final image small by discarding build tools  
-**Deployment** → tells Kubernetes the desired state (e.g. 3 replicas)  
-**Self-healing** → Kubernetes auto-replaces failed pods to match desired state  
-**Readiness probe** → gates traffic (don't send requests if not ready)  
-**Liveness probe** → gates existence (restart if the container is stuck/dead)
+| # | Deliverable | What's included |
+|---|-------------|-----------------|
+| D1 | Namespace and cgroup observations | Screenshots from Tasks A1–A3 |
+| D2 | Image size comparison table | Output of `docker image ls` and `docker history` for both images |
+| D3 | Kubernetes deployment evidence | Pod listings, service access via `curl` |
+| D4 | Self-healing evidence | `kubectl get pods -w` output showing pod recreation |
+| D5 | Reflection answers | See `reflection.md` |
+
+---
+
+## Key Concepts Demonstrated
+
+- **Namespaces** isolate what a container process can see (PID, network, mount, hostname).
+- **cgroups** limit how much CPU and memory a container can consume.
+- **Multi-stage builds** reduce final image size by separating the build environment from the runtime environment.
+- **Kubernetes Deployments** manage desired state — if a Pod dies, the controller reconciles it back.
+- **Readiness probes** gate traffic to a Pod; **liveness probes** restart a Pod if it becomes unhealthy. They are not interchangeable.
+- **Node selectors** allow declarative scheduling constraints without hard-coding machine names.
