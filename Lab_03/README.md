@@ -1,6 +1,6 @@
 # Lab 03 – Containerization and Cluster Orchestration
 
-**Student Name:** [YOUR NAME HERE]  
+**Student Name:** joy george  
 **Course:** Cloud & Mobile Computing (CMC)
 
 ---
