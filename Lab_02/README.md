@@ -1,140 +1,130 @@
-Here’s a clean, professional **README.md** you can put in your GitHub repo (especially for **Lab 02**) that includes your reflection answers and aligns with your lecturer’s requirements.
+# Lab 2 — Distributed Consistency and Consensus in the Cloud
+
+**Course:** Cloud and Mobile Computing
+**Instructor:** Dr. Youssef Senousy
+**Student Name:** joy george
 
 ---
 
-# 📘 Distributed Systems Labs Repository
+## Overview
 
-## 👤 Student Information
+This lab explores how distributed systems maintain consistency, handle availability trade-offs, and reach consensus under failure conditions. Two tools are used:
 
-* **Name:** [Your Name]
-* **Course:** [Course Name]
-* **Instructor:** [Instructor Name]
-* **Submission Deadline:** 26 April
+- **Redis** — to simulate eventual consistency and observe CAP theorem behavior under a network partition
+- **etcd** — to experiment with the Raft consensus protocol, including leader election and failover
 
 ---
 
-## 📂 Repository Structure
+## Prerequisites
 
-```
-Lab_01/
-Lab_02/
-Lab_03/
-Lab_04/
-GitHub_Link.txt
-```
-
-Each folder contains:
-
-* Source files
-* Configuration files
-* Screenshots / outputs
-* Reflection answers
+- [Docker Desktop](https://www.docker.com/products/docker-desktop/) or Docker Engine
+- Docker Compose
 
 ---
 
-# 🧪 Lab 02: Distributed Consistency and Consensus
 
-## 📌 Overview
+## How to Run
 
-This lab explores how distributed systems handle:
-
-* Consistency
-* Availability
-* Partition tolerance (CAP theorem)
-* Consensus using the Raft algorithm
-
-We used:
-
-* **Redis** → to demonstrate replication and eventual consistency
-* **etcd** → to demonstrate consensus and leader election
-
----
-
-## ⚙️ Setup
-
-Run the following command to start the environment:
-
+**Start the environment:**
 ```bash
 docker-compose up
 ```
 
-To stop:
-
+**Stop and clean up:**
 ```bash
 docker-compose down
 ```
 
 ---
 
-## 🧪 Tasks Performed
+## Task 1 — Redis Replication and CAP Theorem
 
-### 🔹 Task 1: Redis Replication
+### What was done
 
-* Connected to `redis-node1` (master) and `redis-node2` (replica)
-* Wrote data to master
-* Observed delayed replication on replica
-* Simulated network partition by stopping replica
+Connected to both Redis nodes and demonstrated eventual consistency by writing to one replica and immediately reading from the other. Then simulated a network partition by stopping `redis-node2` to observe how the cluster handles availability vs. consistency.
 
-### 🔹 Task 2: Raft Consensus with etcd
+### Commands used
 
-* Inserted key-value pairs using `etcdctl`
-* Identified the leader node
-* Simulated failure by stopping leader
-* Observed automatic leader re-election
+```bash
+# Connect to Redis nodes
+docker exec -it redis-node1 redis-cli
+docker exec -it redis-node2 redis-cli
 
----
+# Write a key on node1
+SET mykey "hello"
 
-## 📊 Key Observations
+# Read from node2 (immediately — may not yet be replicated)
+GET mykey
 
-* Redis replication is **asynchronous**
-* Temporary inconsistency occurs during network issues
-* etcd maintains **strong consistency** using Raft
-* Leader election ensures system reliability
+# Simulate partition — stop node2
+docker stop redis-node2
 
----
+# Attempt writes on node1 while node2 is down
+SET anotherkey "world"
 
-## 📝 Reflection Questions
+# Bring node2 back and check if it caught up
+docker start redis-node2
+docker exec -it redis-node2 redis-cli GET anotherkey
+```
 
-### Q1. What does "eventual consistency" mean, and how did Redis demonstrate it?
+### Observations
 
-Eventual consistency means that updates made to a system are not immediately visible on all nodes, but given enough time, all nodes will become consistent.
-
-In Redis, this was demonstrated through replication between the master (redis-node1) and the replica (redis-node2). When a key was written to the master, it did not instantly appear on the replica. However, after a short delay, the replica synchronized and reflected the updated data. Additionally, when a network partition was simulated, writes made during the disconnection were later synchronized once the replica reconnected.
-
----
-
-### Q2. How does the CAP theorem apply to Redis?
-
-The CAP theorem states that a distributed system can only guarantee two out of three properties:
-
-* Consistency
-* Availability
-* Partition Tolerance
-
-Redis replication mode follows the **AP (Availability + Partition Tolerance)** model. It continues accepting writes on the master even during network partitions, ensuring availability. However, this may lead to temporary inconsistency, as replicas can serve outdated data until synchronization occurs.
+> *(Fill in: Did the read on node2 reflect the write immediately? What happened to writes during the partition? Did node2 sync after restarting?)*
 
 ---
 
-### Q3. What is the Raft consensus algorithm and what problem does it solve?
+## Task 2 — Raft Consensus with etcd
 
-Raft is a consensus algorithm designed to ensure that multiple nodes in a distributed system agree on the same state.
+### What was done
 
-It works by electing a **leader node**, which is responsible for handling all write requests. The leader replicates changes to follower nodes and ensures that only committed entries are applied.
+Used `etcdctl` to write and read key-value pairs from the etcd cluster, inspected which node was the current leader, then stopped the leader container to trigger an automatic leader re-election and observed the outcome.
 
-Raft solves the problem of maintaining consistency across distributed systems, even in the presence of node failures, by ensuring that all nodes agree on the same sequence of operations.
+### Commands used
+
+```bash
+# Write a key-value pair
+docker exec -it etcd etcdctl put foo bar
+
+# Read it back
+docker exec -it etcd etcdctl get foo
+
+# Check cluster status and identify the leader
+docker exec -it etcd etcdctl endpoint status
+
+# Stop the leader to trigger re-election
+docker stop <leader-container-name>
+
+# Check status again — a new leader should be elected
+docker exec -it etcd etcdctl endpoint status
+```
+
+### Observations
+
+> *(Fill in: Which node was the initial leader? How long did re-election take? Was the cluster available during the transition?)*
 
 ---
 
-### Q4. What happened when you stopped the etcd leader?
+## Reflection
 
-When the etcd leader node was stopped, the remaining nodes in the cluster detected the failure.
+> *(Answer these in `reflection.md` — summarized here for quick reference)*
 
-They initiated a new leader election process using the Raft algorithm. Since the cluster had three nodes, the remaining two formed a quorum and successfully elected a new leader.
+**1. How does Redis demonstrate the CAP theorem?**
+Redis in a replicated setup prioritizes availability over strong consistency — it stays writable during a partition, accepting the risk of stale reads on replicas. This makes it an AP system under the CAP model.
 
-The system continued functioning without interruption, demonstrating fault tolerance and high availability.
+**2. What is the role of the Raft protocol in etcd?**
+Raft ensures that all nodes in the etcd cluster agree on the same sequence of writes, even when nodes fail. It does this by electing a single leader responsible for coordinating all writes, and replicating the log to a majority of nodes before committing.
+
+**3. What trade-offs did you observe between Redis and etcd?**
+> *(Fill in your own comparison based on what you saw.)*
 
 ---
 
+## Key Concepts Covered
 
-
-
+| Concept | Tool Used |
+|--------|-----------|
+| Eventual consistency | Redis replication |
+| Network partition simulation | Docker (`docker stop`) |
+| CAP theorem (AP vs CP) | Redis vs etcd comparison |
+| Raft leader election | etcd cluster |
+| Consensus and failover | etcd + `etcdctl` |
