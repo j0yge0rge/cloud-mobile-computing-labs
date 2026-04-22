@@ -1,0 +1,101 @@
+networks:
+  lab_network:
+    driver: bridge
+
+services:
+
+  # ─────────────────────────────────────────────
+  # Redis Master (node1 – the one we WRITE to)
+  # ─────────────────────────────────────────────
+  redis-node1:
+    image: redis:7
+    container_name: redis-node1
+    networks:
+      - lab_network
+    ports:
+      - "6379:6379"
+    command: redis-server --save "" --appendonly no
+
+  # ─────────────────────────────────────────────
+  # Redis Replica (node2 – follows node1)
+  # ─────────────────────────────────────────────
+  redis-node2:
+    image: redis:7
+    container_name: redis-node2
+    networks:
+      - lab_network
+    ports:
+      - "6380:6379"
+    command: redis-server --replicaof redis-node1 6379 --save "" --appendonly no
+    depends_on:
+      - redis-node1
+
+  # ─────────────────────────────────────────────
+  # etcd node 1
+  # ─────────────────────────────────────────────
+  etcd:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: etcd
+    networks:
+      - lab_network
+    ports:
+      - "2379:2379"
+      - "2380:2380"
+    command:
+      - etcd
+      - --name=etcd
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd:2380
+      - --initial-cluster=etcd=http://etcd:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=lab-cluster
+
+  # ─────────────────────────────────────────────
+  # etcd node 2
+  # ─────────────────────────────────────────────
+  etcd2:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: etcd2
+    networks:
+      - lab_network
+    ports:
+      - "2381:2379"
+      - "2382:2380"
+    command:
+      - etcd
+      - --name=etcd2
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd2:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd2:2380
+      - --initial-cluster=etcd=http://etcd:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=lab-cluster
+    depends_on:
+      - etcd
+
+  # ─────────────────────────────────────────────
+  # etcd node 3
+  # ─────────────────────────────────────────────
+  etcd3:
+    image: quay.io/coreos/etcd:v3.5.9
+    container_name: etcd3
+    networks:
+      - lab_network
+    ports:
+      - "2383:2379"
+      - "2384:2380"
+    command:
+      - etcd
+      - --name=etcd3
+      - --listen-client-urls=http://0.0.0.0:2379
+      - --advertise-client-urls=http://etcd3:2379
+      - --listen-peer-urls=http://0.0.0.0:2380
+      - --initial-advertise-peer-urls=http://etcd3:2380
+      - --initial-cluster=etcd=http://etcd:2380,etcd2=http://etcd2:2380,etcd3=http://etcd3:2380
+      - --initial-cluster-state=new
+      - --initial-cluster-token=lab-cluster
+    depends_on:
+      - etcd

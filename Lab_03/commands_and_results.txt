@@ -1,0 +1,321 @@
+# Lab 03 – Commands Guide (PowerShell / Windows)
+# Containerization and Cluster Orchestration
+# Student Name: [YOUR NAME HERE]
+# Run every command from inside your Lab_03 folder
+
+========================================================
+TOOLS YOU NEED INSTALLED FIRST
+========================================================
+
+1. Docker Desktop  → https://www.docker.com/products/docker-desktop/
+2. kind            → https://kind.sigs.k8s.io/docs/user/quick-start/#installation
+   (easiest: winget install Kubernetes.kind)
+3. kubectl         → https://kubernetes.io/docs/tasks/tools/install-kubectl-windows/
+   (easiest: winget install Kubernetes.kubectl)
+
+After installing, open a NEW PowerShell and test:
+   docker --version
+   kind --version
+   kubectl version --client
+
+========================================================
+PART A – Namespaces and cgroups
+========================================================
+
+## A1 – Start an interactive container
+
+    docker run --rm -it --name nsdemo ubuntu:22.04 bash
+
+Inside the container, run these one by one (TAKE SCREENSHOTS of each):
+
+    hostname
+    ps -ef
+    ip addr
+    mount | head
+    cat /proc/1/cgroup
+
+WHAT TO NOTICE:
+- hostname shows a random container ID, not your PC name
+- ps -ef only shows a tiny number of processes (just bash), not your whole PC
+- ip addr shows a private 172.x.x.x address
+- /proc/1/cgroup shows you are inside a cgroup
+
+Type "exit" to leave the container.
+
+─────────────────────────────────────────────────────
+## A2 – Compare host vs container PIDs
+
+Open a SECOND PowerShell terminal. Start nsdemo again:
+
+    docker run --rm -it --name nsdemo ubuntu:22.04 bash
+
+In the SECOND terminal (on your host machine):
+
+    docker ps
+    docker inspect nsdemo --format "{{.State.Pid}}"
+
+Copy the number shown (e.g. 12345), then:
+
+    docker top nsdemo
+
+WHAT TO NOTICE: Inside the container, bash is PID 1.
+On the host, Docker sees it as a much higher PID (e.g. 12345).
+This is the PID NAMESPACE — the container has its own PID numbering.
+
+─────────────────────────────────────────────────────
+## A3 – Resource limits with cgroups
+
+    docker run --rm -it --cpus="0.5" --memory="256m" ubuntu:22.04 bash
+
+Inside the container:
+
+    apt-get update && apt-get install -y stress
+    stress --cpu 2 --vm 1 --vm-bytes 220M --timeout 30
+
+In another terminal, watch the stats:
+
+    docker stats
+
+WHAT TO NOTICE:
+- CPU never goes above ~50% (0.5 core limit = 50%)
+- Memory stays under 256MB
+- Without cgroups, the container could starve other processes
+
+Type "exit" when done.
+
+========================================================
+PART B – Docker Image Layering
+========================================================
+
+Make sure you are in the Lab_03 folder, then:
+
+## B1 – Build the basic image
+
+    docker build -f Dockerfile.basic -t lab3-basic .
+
+Inspect the layers:
+
+    docker history lab3-basic
+    docker image ls
+
+SCREENSHOT: The "docker image ls" output showing lab3-basic and its size.
+
+─────────────────────────────────────────────────────
+## B2 – Build the multi-stage image
+
+    docker build -f Dockerfile.multistage -t lab3-multi .
+
+Compare:
+
+    docker image ls
+    docker history lab3-multi
+
+SCREENSHOT: Both images listed — note the sizes.
+
+QUESTIONS TO ANSWER (write in your own words):
+- Which image is smaller? → lab3-multi should be smaller or similar
+- Which steps are cached if only app.py changes?
+  → "COPY requirements.txt" and "pip install" are cached (not re-run)
+  → Only the final "COPY app.py" runs again
+- Why does layer order matter?
+  → Put things that change rarely (pip install) BEFORE things that change
+     often (app.py), so Docker can reuse cached layers and build faster.
+
+========================================================
+PART C – Kubernetes with kind
+========================================================
+
+## C1 – Create the cluster
+
+    kind create cluster --name lab3-cluster
+
+This takes 1-2 minutes. Then verify:
+
+    kubectl cluster-info
+    kubectl get nodes -o wide
+
+SCREENSHOT: nodes showing "Ready" status.
+
+─────────────────────────────────────────────────────
+## C2 – Load your images into kind
+
+    kind load docker-image lab3-basic --name lab3-cluster
+    kind load docker-image lab3-multi --name lab3-cluster
+
+─────────────────────────────────────────────────────
+## C3 – Label the node (needed for nodeSelector in deployment.yaml)
+
+    kubectl label nodes --all node-role=general
+    kubectl get nodes --show-labels
+
+─────────────────────────────────────────────────────
+## C4 – Deploy the application
+
+    kubectl apply -f deployment.yaml
+    kubectl apply -f service.yaml
+
+Wait 20 seconds, then:
+
+    kubectl get pods -o wide
+    kubectl get deployments
+    kubectl describe deployment lab3-web
+
+SCREENSHOT: 3 pods all showing "Running" status.
+
+─────────────────────────────────────────────────────
+## C5 – Access the service
+
+Open a NEW terminal and run (keep it running):
+
+    kubectl port-forward service/lab3-web-svc 8080:80
+
+In ANOTHER terminal:
+
+    curl http://localhost:8080/
+    curl http://localhost:8080/health
+
+Expected output:
+    Hello from Lab 3
+    ok
+
+SCREENSHOT: Both curl responses.
+
+(If curl is not available on Windows, open a browser and go to:
+ http://localhost:8080/  and  http://localhost:8080/health)
+
+========================================================
+PART D – Scheduling and Placement
+========================================================
+
+The nodeSelector is already in deployment.yaml (node-role: general).
+The node was already labelled in C3. Re-apply to confirm:
+
+    kubectl apply -f deployment.yaml
+    kubectl get pods -o wide
+
+REFLECTION:
+Why is nodeSelector better than hard-coding a machine name?
+→ In traditional deployments, you say "run on server-5". If server-5 dies,
+   someone must manually move it. With Kubernetes nodeSelector, you say
+   "run on any node labelled general". Kubernetes picks any matching node.
+   If one node dies, it reschedules to another matching node automatically.
+
+========================================================
+PART E – Self-healing and Health Probes
+========================================================
+
+## E1 – Delete a Pod and watch it recover
+
+First, list your pods:
+
+    kubectl get pods
+
+Copy one pod name (e.g. lab3-web-7d9f8b-xkj2p), then:
+
+    kubectl delete pod <PASTE_POD_NAME_HERE>
+
+Immediately watch what happens:
+
+    kubectl get pods -w
+
+WHAT TO NOTICE: The deleted pod disappears and a NEW pod appears within
+seconds. The Deployment controller saw "I want 3 pods, I only have 2"
+and immediately created a replacement. This is RECONCILIATION.
+
+Press Ctrl+C to stop watching.
+
+─────────────────────────────────────────────────────
+## E2 – Deploy with health probes
+
+    kubectl apply -f probe-deployment.yaml
+    kubectl get pods
+
+Wait 15 seconds, then:
+
+    kubectl describe pod <ONE_PROBE_POD_NAME>
+
+Scroll down to "Conditions" and "Events" — you will see the readiness
+probe checking /health every 5 seconds.
+
+SCREENSHOT: The describe output showing probe checks.
+
+─────────────────────────────────────────────────────
+## E3 – Kill the main process inside a pod
+
+List probe pods:
+
+    kubectl get pods
+
+Pick a pod name that starts with "lab3-web-probe-", then:
+
+    kubectl exec -it <PROBE_POD_NAME> -- /bin/sh
+
+Inside the pod shell:
+
+    ps -ef
+    kill 1
+
+Watch from another terminal:
+
+    kubectl get pods -w
+
+WHAT TO NOTICE: Kubernetes restarts the container INSIDE the same pod
+(you will see RESTARTS count go from 0 to 1). This is different from
+deleting a pod — the pod stays, only the container inside restarts.
+
+The liveness probe detected the process died and triggered a restart.
+
+========================================================
+CLEANUP
+========================================================
+
+    kubectl delete -f deployment.yaml
+    kubectl delete -f service.yaml
+    kubectl delete -f probe-deployment.yaml
+    kind delete cluster --name lab3-cluster
+
+========================================================
+REFLECTION ANSWERS (write these in your own words)
+========================================================
+
+Q1. Why do namespaces alone not guarantee fair resource use?
+A: Namespaces only isolate what a process can SEE (filesystem, network,
+   PIDs). They do not limit HOW MUCH CPU or memory it consumes. A
+   container could still use 100% CPU and starve others. Cgroups are
+   needed to enforce actual resource limits.
+
+Q2. How do cgroups improve cluster stability?
+A: Cgroups prevent any single container from monopolising the host's
+   CPU or memory. This means other containers on the same machine
+   continue running even if one misbehaves, keeping the cluster stable.
+
+Q3. Why is Docker image layering important for large-scale orchestration?
+A: Layers are cached and shared. If 100 containers use the same base
+   image, the host only stores it once. Rebuilds are fast because only
+   changed layers are rebuilt. This saves storage and speeds up
+   deployments significantly.
+
+Q4. What does Kubernetes mean by "desired state"?
+A: You tell Kubernetes what you want (e.g., "3 replicas of this app
+   running"). Kubernetes constantly compares reality to your desired
+   state and makes changes to match it. You do not say HOW to achieve
+   it — just WHAT you want.
+
+Q5. How is self-healing different from traditional manual operations?
+A: Traditionally, a sysadmin would get an alert, log in, and manually
+   restart the failed service — taking minutes or hours. Kubernetes
+   detects failure in seconds and automatically creates a replacement
+   pod with no human intervention required.
+
+Q6. Why are readiness and liveness probes not interchangeable?
+A: Readiness = "is this pod ready to RECEIVE traffic?" If not ready,
+   Kubernetes stops sending requests to it but does NOT restart it.
+   Liveness = "is this pod still ALIVE?" If the liveness check fails,
+   Kubernetes RESTARTS the container. Using them for the wrong purpose
+   would cause unnecessary restarts or route traffic to broken pods.
+
+Q7. What is one limitation of a single-node kind cluster?
+A: With only one node, all pods land on the same machine. You cannot
+   observe pods being spread across multiple machines or see what
+   happens when an entire NODE fails (only pod failures). Real
+   multi-node clusters show true distributed scheduling.

@@ -1,0 +1,7 @@
+GitHub Repository URL: [PASTE YOUR GITHUB REPO LINK HERE]
+
+Instructions:
+1. Create a public GitHub repository (e.g., https://github.com/YOUR_USERNAME/cmc-labs)
+2. Create a folder called Lab_04 inside it
+3. Upload all files from the week4-lab/ folder into Lab_04/
+4. Replace this line with your actual repo URL before submitting
