@@ -1,7 +1,7 @@
 # Lab 5 — Local Serverless Computing and Event-Driven Image Processing Pipeline
 
 **Course:** Cloud and Mobile Computing  
-**Student Name:** *(Your name here)*
+**Student Name:** joy george
 
 ---
 
@@ -49,32 +49,7 @@ This lab simulates a serverless, event-driven architecture entirely on your loca
 
 ---
 
-## Project Structure
 
-```
-lecture5-local-serverless-lab/
-├── docker-compose.yml
-├── data/
-│   ├── input/               # Drop images here to trigger the pipeline
-│   └── output/              # Resized images appear here
-├── event_source/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── watcher.py
-├── router/
-│   ├── Dockerfile
-│   ├── requirements.txt
-│   └── event_router.py
-└── functions/
-    ├── image_resizer/
-    │   ├── Dockerfile
-    │   ├── requirements.txt
-    │   └── app.py
-    └── notifier/
-        ├── Dockerfile
-        ├── requirements.txt
-        └── app.py
-```
 
 ---
 
@@ -196,15 +171,3 @@ Remove-Item data/output/* -Force
 | `curl` not working on PowerShell | PowerShell aliases curl differently | Use `Invoke-RestMethod` instead |
 
 ---
-
-## Reflection
-
-See `reflection.md` for answers to the discussion questions:
-1. What is the event source in this lab?
-2. What is the event router?
-3. What are the event destinations?
-4. Why is this pipeline loosely coupled?
-5. What happened after restarting the image-resizer container?
-6. How is this similar to serverless cold start?
-7. What is missing compared with real cloud serverless platforms?
-8. How could this pipeline be extended (e.g. OCR, image moderation, ML enrichment)?
