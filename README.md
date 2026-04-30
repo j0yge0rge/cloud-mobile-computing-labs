@@ -1,24 +1,23 @@
-# Cloud and Mobile Computing — Labs 1–4
+# Cloud and Mobile Computing — Labs 1–5
 
-**Course:** Cloud and Mobile Computing
-**Instructor:** Dr. Youssef Senousy
-**Student Name:** joy george
+**Course:** Cloud and Mobile Computing  
+**Instructor:** Dr. Youssef Senousy  
+**Student Name:** Joy George  
 
 ---
-
 
 ## Lab Summaries
 
 ### Lab 1 — Cloud Virtualization and Data Center Architecture
-
 **Topic:** Comparing VMs vs. containers, exploring cloud infrastructure, and simulating tail latency.
 
 **What was done:**
 - Launched a local Ubuntu VM using Multipass and a container using Docker, then compared their startup time, memory usage, and process count.
-- Explored the AWS Nitro Hypervisor on an EC2 `t2.micro` instance — observed that Nitro components are visible but not directly accessible, demonstrating security enforcement.
+- Explored the AWS Nitro Hypervisor on an EC2 t2.micro instance — observed that Nitro components are visible but not directly accessible, demonstrating security enforcement.
 - Built and deployed a Flask web app with artificial exponential delay to simulate tail latency, then benchmarked it using Apache Bench (`ab`) and plotted a response-time histogram.
 
 **Key files:**
+
 | File | Description |
 |------|-------------|
 | `screenshots/` | VM vs. container resource comparison, EC2 console, htop output |
@@ -28,7 +27,6 @@
 ---
 
 ### Lab 2 — Distributed Consistency and Consensus
-
 **Topic:** Hands-on exploration of the CAP theorem using Redis replication and Raft consensus using etcd.
 
 **What was done:**
@@ -37,6 +35,7 @@
 - Set up a three-node etcd cluster, wrote key-value pairs using `etcdctl`, inspected cluster leader status, and triggered a leader re-election by stopping the leader container.
 
 **Key files:**
+
 | File | Description |
 |------|-------------|
 | `docker-compose.yml` | Multi-container setup for Redis nodes and etcd cluster |
@@ -46,7 +45,6 @@
 ---
 
 ### Lab 3 — Containerization and Cluster Orchestration
-
 **Topic:** Linux namespaces and cgroups, Docker image layering, Kubernetes deployment, scheduling, and self-healing.
 
 **What was done:**
@@ -58,6 +56,7 @@
 - Configured readiness and liveness probes and explained the difference between the two.
 
 **Key files:**
+
 | File | Description |
 |------|-------------|
 | `Dockerfile.basic` / `Dockerfile.multistage` | Single-stage and multi-stage image builds |
@@ -71,7 +70,6 @@
 ---
 
 ### Lab 4 — Microservices and Cloud-Native Design
-
 **Topic:** Building a two-service cloud-native backend using Python Flask and Docker Compose, with service-to-service communication, health endpoints, and failure simulation.
 
 **What was done:**
@@ -81,6 +79,7 @@
 - Verified successful end-to-end API calls with `curl` and simulated failure by stopping `product-service`, observing how `order-service` degrades gracefully.
 
 **Key files:**
+
 | File | Description |
 |------|-------------|
 | `product-service/app.py` | Product lookup service |
@@ -89,6 +88,30 @@
 | `docker-compose.yml` | Orchestrates both services together |
 | `screenshots/` | Successful API calls and failure simulation output |
 | `report.md` | Reflection on monolith vs. microservices trade-offs |
+
+---
+
+### Lab 5 — Local Serverless Computing and Event-Driven Image Processing Pipeline
+**Topic:** Simulating FaaS and event-driven architecture locally using Redis Streams, containerized functions, and a folder-watching event source.
+
+**What was done:**
+- Implemented a folder watcher (`watcher.py`) as the event source — detects new images dropped into `/data/input/` and publishes `image.uploaded` events to a Redis Stream.
+- Built an event router (`event_router.py`) that reads from the Redis Stream and fans out each event to two function endpoints simultaneously.
+- Implemented `image-resizer`: a Flask function that resizes the incoming image and saves the output to `/data/output/`.
+- Implemented `notifier`: a Flask function that logs a notification for each processed event, demonstrating event fan-out.
+- Conducted a cold-start mini-experiment by measuring and comparing response time before and after restarting a function container.
+
+**Key files:**
+
+| File | Description |
+|------|-------------|
+| `docker-compose.yml` | Orchestrates Redis, event-source, router, and both functions |
+| `event_source/watcher.py` | Watches input folder and publishes events to Redis Stream |
+| `router/event_router.py` | Reads events from Redis and routes them to function endpoints |
+| `functions/image_resizer/app.py` | Resizes image and saves result to `/data/output/` |
+| `functions/notifier/app.py` | Logs a notification for each received event |
+| `screenshots/` | Running containers, event logs, output image, cold-start results |
+| `reflection.md` | Answers to serverless/event-driven architecture questions |
 
 ---
 
@@ -103,7 +126,7 @@ cd <repo-name>
 
 # Lab 2 — start distributed environment
 cd Lab_02
-docker-compose up
+docker compose up
 
 # Lab 3 — create local Kubernetes cluster
 cd Lab_03
@@ -114,9 +137,16 @@ kubectl apply -f service.yaml
 # Lab 4 — start microservices
 cd Lab_04
 docker compose up --build
+
+# Lab 5 — start serverless pipeline
+cd Lab_05
+docker compose up --build
 ```
+
+---
 
 ## Notes
 
 - All work in this repository is original and was completed individually.
 - Screenshots and terminal outputs were captured during actual lab execution.
+- The GitHub repository is organized using clearly named folders (`Lab_01` through `Lab_05`) and is accessible for review.
